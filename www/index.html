@@ -1,0 +1,184 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<!-- http://rzhunemogu.ru/RandJSON.aspx?CType=1 rzhunemogu.ru -->
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Привет из ГАИ</title>
+    <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen">
+  <script src="http://code.jquery.com/jquery.js"></script>
+  <script src="bootstrap/js/bootstrap.min.js"></script>
+  <script src="privetGai.js"></script>
+
+  <style type="text/css">
+    .span12 {text-align: center}
+  </style>
+  </head>
+<body>
+    <div class="container">
+      <div class="row">
+        <div class="span12">
+
+<div class="navbar">
+  <div class="navbar-inner">
+    <ul class="nav">
+      <li class="active"><a href="index.html">Проверить штрафы</a></li>
+      <li><a href="faq.html">О сервисе</a></li>
+    </ul>
+  </div>
+</div>
+
+<h3>Штрафы ГИБДД, регион 73</h3>
+
+    <div class="well">
+      <div id="svidetError" class="alert alert-error" style="display:none;">Некоректно введен номер свидетельства, пример: 73хх123456 (русскими буквами)</div>
+      <div id="gosnomerError" class="alert alert-error" style="display:none;">Некоректно введен гос.номер, пример: а123рр73 (русскими буквами)</div>
+      <div class="form-inline">
+            <input type="text" id="svidet" name="svidet" placeholder="Свидетельство о регистрации">
+            <input type="text" id="gosnomer" name="gosnomer" placeholder="Гос.номер">
+            <button id="theButton" onclick="fetchData();" class="btn">Проверить</button>
+      </div>
+      <br>
+      <div id="emailInfo" class="alert alert-info" style="display:none;"></div>
+    </div>
+
+  <div id="loader" style="display:none;">
+    <img src="/loader.gif"/>
+  </div>
+
+<div class="well"  id="notFound" style="display:none;">
+Ничего не найдено
+</div>
+<div class="well"  id="theTable" style="display:none;">
+<table class="table table-striped">
+  <thead>
+  <tr>
+    <th>Дата</th><th>Сумма</th><th>№ постановления</th><th>Статья</th>
+  </tr>
+  </thead>
+  <tbody id="theTableBody">
+<!-- http://auto.mail.ru/info/penalty.html -->
+  </tbody>
+</table>
+</div><!-- well -->
+
+<div class="well" id="subscribePanel" style="display:none;">
+  <div id="emailError" class="alert alert-error" style="display:none;">Введтите корректный email</div>
+  <div id="emailForm" class="form-inline">
+    <input value="" id="email" type="email" placeholder="email" />
+    <button id="subscribeButton" onclick="subscribe();" class="btn">Подписаться</button>
+  </div><!-- form -->
+</div>
+
+        </div>
+
+      </div>
+    <div>
+
+<script>
+  
+  var emailPtn = /^\w+@[a-zA-Z_]+?\.[a-zA-Z]{2,3}$/;
+  var svidetPtn = /^\d\d[а-яА-Я]{2}\d{6}$/;
+  var gosnomerPtn = /^[а-яА-Я]\d{3}[а-яА-Я]{2}\d{2}$/;
+
+  var validateField = function(elemId, ptn) {
+    var elem = $(elemId);
+    var elemErr = $(elemId + 'Error');
+    if (!elem.val().match(ptn)) {
+      elemErr.show();
+      return false;
+    } else {
+      elemErr.hide();
+      return true;
+    }
+  };
+
+  var subscribe = function() {
+       
+    if(!validateField('#email', emailPtn)) {
+      return;
+    }
+
+    $.ajax({
+        type:"GET",
+        url:"/subscribe?svidet="+$('#svidet').val()+"&gosnomer="+$('#gosnomer').val()+"&email="+$('#email').val(),
+        cache:false,
+        beforeSend: function(){
+          $('#loader').show();
+        },
+        complete: function(){
+          $('#loader').hide();
+        },
+        success:function(resp){
+          console.log(resp);
+          if(resp){
+            $('#emailInfo').text('Подписка оформлена');
+            $('#subscribePanel').hide();
+            $('#emailInfo').show();
+          }
+        }
+    });    
+    
+  };
+
+  var fetchData = function() {
+
+    if(!validateField('#svidet', svidetPtn)) {
+      return;
+    };
+
+    if(!validateField('#gosnomer', gosnomerPtn)) {
+      return;
+    }
+
+    $('#theTableBody').empty();
+    $.ajax({
+	type:"GET",
+	url:"/fetch?svidet="+$('#svidet').val()+"&gosnomer="+$('#gosnomer').val(),
+	cache:false,
+        beforeSend: function(){ 
+          $('#theTable').hide();
+          $('#subscribePanel').hide();
+          $('#theButton').attr("disabled", true);
+          $('#loader').show(); 
+          $('#notFound').hide();
+        },
+        complete: function(){ 
+          $('#loader').hide(); 
+          $('#theButton').attr("disabled", false);
+        },
+	success:function(resp){
+          resp = $.parseJSON(resp);
+          $.each(resp.list, function(index, value) {
+            $('#theTableBody').append('<tr><td>'+value.date+'</td><td>'+value.amount+'</td><td>'+value.number+'</td><td><a href="http://auto.mail.ru/info/penalty.html" target="_blanc">'+value.clause+'</a></td></tr>');
+          });
+          if(resp.list.length == 0){
+            $('#notFound').show();
+          } else {
+            $('#theTable').show();
+          }
+          
+          if(resp.subs != null){
+            $('#emailInfo').text('Вы подписаны на email '+resp.subs);
+            $('#subscribePanel').hide();
+            $('#emailInfo').show();
+          } else {
+            $('#subscribePanel').show();
+            $('#emailInfo').hide();
+          }
+
+          localStorage.setItem('svidet', $('#svidet').val());
+          localStorage.setItem('gosnomer', $('#gosnomer').val());
+        }
+    });
+  };
+
+  $(document).ready(function(){
+     $('#svidet').val(localStorage.getItem('svidet'));
+     $('#gosnomer').val(localStorage.getItem('gosnomer'));
+  });
+</script>
+
+</body>
+</html>
