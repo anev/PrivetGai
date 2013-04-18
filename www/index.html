@@ -156,6 +156,7 @@
           if(resp.list.length == 0){
             $('#notFound').show();
           } else {
+            $('#theTableBody').append('<tr><td>ВСЕГО</td><td>'+resp.sum+'</td><td></td><td><a href="http://auto.mail.ru/info/penalty.html" target="_blanc"></a></td></tr>');
             $('#theTable').show();
           }
           

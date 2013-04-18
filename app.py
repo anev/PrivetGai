@@ -13,6 +13,7 @@ from httplib2 import Http
 from urllib import urlencode
 import lxml.html
 import cgi
+import re
 
 connection = Connection()
 db = connection['gai']
@@ -39,6 +40,7 @@ class Parser:
         resp, content = h.request("http://73.gibdd.ru/fines/", "POST", body=urlencode(data), headers=headers)
         tree = lxml.html.document_fromstring(content)
         result = []
+        sum = 0
         for straf in tree.find_class('straf'):
             if len(straf.find_class('non-paid')) > 0:
                 date = straf.find_class('news_date')[0].text_content()
@@ -50,9 +52,10 @@ class Parser:
                   'amount':txs[5].text_content(),
                   'okato':txs[7].text_content()}
                 result.append(obj)
-        return result
+                sum += int(re.match(r'\d+', txs[5].text_content()).group())
+        return {"list":result, "sum":sum}
 
-def send_email(email):
+def send_email(email, sum):
     import smtplib
 
     gmail_user = "privetgai@gmail.com"
@@ -61,7 +64,7 @@ def send_email(email):
     FROM = 'privetgai@gmail.com'
     TO = [email]
     SUBJECT = 'Privet iz GAI'
-    TEXT = 'Vam nachislen shtraf, proverte na http://73.gibdd.ru/fines/'
+    TEXT = 'Vam nachisleni shtrafi na summu %s, proverte na http://73.gibdd.ru/fines/' % sum
 
     message = """\From: %s\nTo: %s\nSubject: %s\n\n%s
     """ % (FROM, ", ".join(TO), SUBJECT, TEXT)
@@ -86,8 +89,8 @@ def notifyAll():
     parser = Parser()
     for i in cursor:
         data = parser.fetchData(i['svidet'],i['gosnomer'])
-        if data:
-            send_email(i['email'])
+        if data['sum'] > 0:
+            send_email(i['email'], data['sum'])
 
 class fetch:
     def POST(self):
@@ -97,7 +100,7 @@ class fetch:
         data = web.input()
         result = {}
         parser = Parser()
-        result['list'] = parser.fetchData(data.svidet, data.gosnomer)
+        result = parser.fetchData(data.svidet, data.gosnomer)
 
         stored = subs.find_one({'svidet':data.svidet,'gosnomer':data.gosnomer})
         if stored:
@@ -110,7 +113,7 @@ class subscribe:
         data = web.input()
         stored = subs.find_one({'svidet':data.svidet,'gosnomer':data.gosnomer})
         if stored:
-            return json.dumps({'status':1,'desc':stored['email']})
+	            return json.dumps({'status':1,'desc':stored['email']})
         else:
             subs.insert({'svidet':data.svidet,'gosnomer':data.gosnomer,'email':data.email})
             return json.dumps({'status':0})
