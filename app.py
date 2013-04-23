@@ -83,13 +83,13 @@ def send_email(email, sum):
         print "failed to send mail to "+email
 
 # for cron
-def notifyAll():
+def notifyAll(email = None):
     cursor = subs.find()
     rs = []
     parser = Parser()
     for i in cursor:
         data = parser.fetchData(i['svidet'],i['gosnomer'])
-        if data['sum'] > 0:
+        if data['sum'] > 0 or (email != None and i['email'] == email):
             send_email(i['email'], data['sum'])
 
 class fetch:
@@ -113,10 +113,12 @@ class subscribe:
         data = web.input()
         stored = subs.find_one({'svidet':data.svidet,'gosnomer':data.gosnomer})
         if stored:
-	            return json.dumps({'status':1,'desc':stored['email']})
+	  notifyAll(stored['email'])  
+          return json.dumps({'status':1,'desc':stored['email']})
         else:
-            subs.insert({'svidet':data.svidet,'gosnomer':data.gosnomer,'email':data.email})
-            return json.dumps({'status':0})
+          subs.insert({'svidet':data.svidet,'gosnomer':data.gosnomer,'email':data.email})
+          notifyAll(data.email)
+          return json.dumps({'status':0})
 
 urls = (
     '/fetch', fetch,
